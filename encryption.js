@@ -1,81 +1,30 @@
-
 'use strict';
 
-const IV_LENGTH = 16;
+const crypto = require('crypto');
 
-function validateEncryptionKey(encryptionKey) {
-  if (!encryptionKey || encryptionKey.length !== 32) {
-    throw new Error('Invalid or missing encryption key');
-  }
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // Must be 256 bits (32 characters)
+const IV_LENGTH = 16; // For AES, this is always 16
+
+function encrypt(text) {
+ let iv = crypto.randomBytes(IV_LENGTH);
+ let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+ let encrypted = cipher.update(text);
+
+ encrypted = Buffer.concat([encrypted, cipher.final()]);
+
+ return iv.toString('hex') + ':' + encrypted.toString('hex');
 }
 
-async function encryptText() {
-  const inputText = document.getElementById('inputText').value;
-  const encryptionKey = document.getElementById('encryptionKey').value;
+function decrypt(text) {
+ let textParts = text.split(':');
+ let iv = Buffer.from(textParts.shift(), 'hex');
+ let encryptedText = Buffer.from(textParts.join(':'), 'hex');
+ let decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+ let decrypted = decipher.update(encryptedText);
 
-  try {
-    const encryptedText = await encrypt(inputText, encryptionKey);
-    document.getElementById('outputText').value = encryptedText;
-  } catch (error) {
-    alert(error.message);
-  }
+ decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+ return decrypted.toString();
 }
 
-async function decryptText() {
-  const inputText = document.getElementById('inputText').value;
-  const encryptionKey = document.getElementById('encryptionKey').value;
-
-  try {
-    const decryptedText = await decrypt(inputText, encryptionKey);
-    document.getElementById('outputText').value = decryptedText;
-  } catch (error) {
-    alert(error.message);
-  }
-}
-
-async function encrypt(text, encryptionKey) {
-  validateEncryptionKey(encryptionKey);
-
-  const encoder = new TextEncoder();
-  const encodedKey = encoder.encode(encryptionKey);
-  const subtleCrypto = window.crypto.subtle;
-
-  const iv = window.crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-  const algorithm = { name: 'AES-CBC', iv: iv };
-  const key = await subtleCrypto.importKey('raw', encodedKey, { name: 'AES-CBC' }, false, ['encrypt']);
-  const encryptedBuffer = await subtleCrypto.encrypt(algorithm, key, encoder.encode(text));
-  const encryptedArray = Array.from(new Uint8Array(encryptedBuffer));
-  const encryptedText = ivToHex(iv) + ':' + byteArrayToHex(encryptedArray);
-
-  return encryptedText;
-}
-
-async function decrypt(text, encryptionKey) {
-  validateEncryptionKey(encryptionKey);
-
-  const encoder = new TextEncoder();
-  const encodedKey = encoder.encode(encryptionKey);
-  const subtleCrypto = window.crypto.subtle;
-
-  const [ivHex, encryptedHexString] = text.split(':');
-  const iv = hexToUint8Array(ivHex);
-  const algorithm = { name: 'AES-CBC', iv: iv };
-  const key = await subtleCrypto.importKey('raw', encodedKey, { name: 'AES-CBC' }, false, ['decrypt']);
-  const encryptedArray = hexToUint8Array(encryptedHexString);
-  const decryptedBuffer = await subtleCrypto.decrypt(algorithm, key, new Uint8Array(encryptedArray));
-  const decryptedText = new TextDecoder().decode(decryptedBuffer);
-
-  return decryptedText;
-}
-
-function ivToHex(iv) {
-  return Array.from(iv).map(byte => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function byteArrayToHex(array) {
-  return array.map(byte => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function hexToUint8Array(hex) {
-  return new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-}
+module.exports = { decrypt, encrypt };
