@@ -4,7 +4,7 @@
 const IV_LENGTH = 16;
 
 function validateEncryptionKey(encryptionKey) {
-  if (!encryptionKey || encryptionKey.length !== 2) {
+  if (!encryptionKey || encryptionKey.length !== 32) {
     throw new Error('Invalid or missing encryption key');
   }
 }
